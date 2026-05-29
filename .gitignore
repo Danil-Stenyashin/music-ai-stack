@@ -1,0 +1,19 @@
+# Игнорировать временные файлы и базы
+/backend/uploads/
+/backend/__pycache__/
+/worker/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+
+# Игнорировать данные Docker
+pg_data/
+*.db
+*.sqlite
+
+# Игнорировать системные файлы
+.env
+.venv/
+.idea/
+.vscode/
