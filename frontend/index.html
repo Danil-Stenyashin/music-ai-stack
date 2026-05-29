@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Music Web Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen font-sans">
+    <div class="container mx-auto max-w-4xl p-8">
+        <header class="mb-10 text-center">
+            <h1 class="text-4xl font-extrabold text-blue-500 mb-2">AI Music Platform</h1>
+            <p class="text-gray-400">Расшифровка нот, разделение вокала и инструментов на базе ИИ</p>
+        </header>
+
+        <!-- Форма загрузки -->
+        <div class="bg-gray-800 p-6 rounded-lg shadow-lg mb-8 border border-gray-700">
+            <h2 class="text-xl font-bold mb-4 text-blue-400">Загрузить новый трек</h2>
+            <form id="uploadForm" class="flex flex-col sm:flex-row gap-4">
+                <input type="text" id="trackTitle" placeholder="Название трека" required class="flex-1 bg-gray-700 border border-gray-600 rounded px-4 py-2 focus:outline-none focus:border-blue-500 text-white">
+                <input type="file" id="audioFile" accept="audio/*" required class="bg-gray-700 text-gray-300 border border-gray-600 rounded px-4 py-1 cursor-pointer">
+                <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded font-semibold transition">Запустить ИИ</button>
+            </form>
+            <div id="uploadStatus" class="mt-4 text-sm font-semibold hidden"></div>
+        </div>
+
+        <!-- Таблица треков -->
+        <div class="bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-700">
+            <h2 class="text-xl font-bold mb-4 text-blue-400">Список ваших треков в системе</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="border-b border-gray-700 text-gray-400">
+                            <th class="py-3 px-4">ID</th>
+                            <th class="py-3 px-4">Название</th>
+                            <th class="py-3 px-4">Статус обработки</th>
+                            <th class="py-3 px-4">Результаты</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tracksTable" class="divide-y divide-gray-700">
+                        <tr>
+                            <td colspan="4" class="text-center py-6 text-gray-500">Загрузка данных из БД...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = '/api';
+
+        // Загрузка треков
+        async function fetchTracks() {
+            try {
+                const res = await fetch(`${API_URL}/tracks`);
+                const tracks = await res.json();
+                const tbody = document.getElementById('tracksTable');
+                tbody.innerHTML = '';
+
+                if (tracks.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-6 text-gray-500">Нет загруженных треков</td></tr>';
+                    return;
+                }
+
+                tracks.forEach(t => {
+                    let statusClass = 'text-yellow-500';
+                    if (t.status === 'Completed') statusClass = 'text-green-500 font-semibold';
+                    if (t.status === 'Failed') statusClass = 'text-red-500';
+
+                    let resultLinks = '-';
+                    if (t.status === 'Completed') {
+                        resultLinks = `
+                            <div class="flex flex-col gap-1 text-xs">
+                                <a href="${t.vocal_url}" target="_blank" class="text-blue-400 hover:underline">🎤 Вокал (Stems)</a>
+                                <a href="${t.sheet_music_url}" target="_blank" class="text-blue-400 hover:underline">🎼 Ноты (PDF)</a>
+                            </div>
+                        `;
+                    }
+
+                    tbody.innerHTML += `
+                        <tr>
+                            <td class="py-3 px-4 text-gray-400">${t.id}</td>
+                            <td class="py-3 px-4 font-medium">${t.title}</td>
+                            <td class="py-3 px-4 ${statusClass}">${t.status}</td>
+                            <td class="py-3 px-4">${resultLinks}</td>
+                        </tr>
+                    `;
+                });
+            } catch (err) {
+                console.error("Ошибка при получении данных:", err);
+            }
+        }
+
+        // Отправка формы
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const statusDiv = document.getElementById('uploadStatus');
+            statusDiv.classList.remove('hidden', 'text-green-500', 'text-red-500');
+            statusDiv.classList.add('text-yellow-500');
+            statusDiv.innerText = 'Загрузка файла на сервер...';
+
+            const title = document.getElementById('trackTitle').value;
+            const fileInput = document.getElementById('audioFile');
+
+            const formData = new FormData();
+            formData.append('title', title);
+            formData.append('file', fileInput.files[0]);
+
+            try {
+                const res = await fetch(`${API_URL}/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                if (res.ok) {
+                    statusDiv.classList.remove('text-yellow-500');
+                    statusDiv.classList.add('text-green-500');
+                    statusDiv.innerText = 'Файл успешно добавлен в очередь обработки ИИ оркестратора!';
+                    document.getElementById('uploadForm').reset();
+                    fetchTracks();
+                } else {
+                    throw new Error('Ошибка сервера');
+                }
+            } catch (err) {
+                statusDiv.classList.remove('text-yellow-500');
+                statusDiv.classList.add('text-red-500');
+                statusDiv.innerText = 'Не удалось загрузить файл.';
+            }
+        });
+
+        // Интервал обновления данных
+        fetchTracks();
+        setInterval(fetchTracks, 3000);
+    </script>
+</body>
+</html>
